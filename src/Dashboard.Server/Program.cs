@@ -35,12 +35,25 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 
 app.UseHttpsRedirection();
-app.UseBlazorFrameworkFiles();
+
+// Tells the WASM runtime which environment to load appsettings for (it reads this header
+// from the framework script responses).
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/_framework"))
+    {
+        context.Response.Headers["Blazor-Environment"] = app.Environment.EnvironmentName;
+    }
+    await next();
+});
 app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Serves the client's static web assets from the build manifest, so plain names such as
+// _framework/blazor.webassembly.js resolve to the fingerprinted, precompressed files.
+app.MapStaticAssets();
 app.MapDashboardApi();
 app.MapHub<MetricsHub>(HubPaths.Metrics);
 app.MapFallbackToFile("index.html");
