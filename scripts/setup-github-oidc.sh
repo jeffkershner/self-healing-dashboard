@@ -19,10 +19,18 @@ if [[ -z "$appId" ]]; then
 fi
 spId=$(az ad sp show --id "$appId" --query id -o tsv)
 
-az ad app federated-credential create --id "$appId" --parameters "$(jq -cn --arg repo "$repo" '{
-  name: "github-production", issuer: "https://token.actions.githubusercontent.com",
-  subject: ("repo:" + $repo + ":environment:production"), audiences: ["api://AzureADTokenExchange"] }')" \
-  --output none 2>/dev/null || true
+# GitHub presents the OIDC subject with owner and repo ids embedded
+# (repo:<owner>@<ownerId>/<name>@<repoId>:environment:production), so register that form
+# as well as the plain one.
+ownerId=$(gh api "repos/${repo}" --jq '.owner.id'); repoId=$(gh api "repos/${repo}" --jq '.id')
+owner="${repo%%/*}"; name="${repo##*/}"
+for entry in "github-production|repo:${repo}:environment:production" \
+             "github-production-ids|repo:${owner}@${ownerId}/${name}@${repoId}:environment:production"; do
+  az ad app federated-credential create --id "$appId" --parameters "$(jq -cn \
+    --arg name "${entry%%|*}" --arg subject "${entry#*|}" '{
+    name: $name, issuer: "https://token.actions.githubusercontent.com",
+    subject: $subject, audiences: ["api://AzureADTokenExchange"] }')" --output none 2>/dev/null || true
+done
 
 az role assignment create --assignee-object-id "$spId" --assignee-principal-type ServicePrincipal \
   --role "Website Contributor" --scope "/subscriptions/${sub}/resourceGroups/${rg}" --output none

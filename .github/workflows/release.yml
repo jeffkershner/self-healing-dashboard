@@ -46,7 +46,6 @@ jobs:
           default_bump: patch
           release_branches: main
           tag_prefix: v
-          initial_version: 0.1.0
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
