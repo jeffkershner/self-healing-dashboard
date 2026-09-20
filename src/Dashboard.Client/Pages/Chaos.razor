@@ -1,0 +1,74 @@
+@page "/chaos"
+@using Dashboard.Shared
+@using Dashboard.Client.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Chaos</PageTitle>
+
+<h1>Chaos</h1>
+<p class="lead">
+    Each scenario calls a real API endpoint with an input the current release does not handle.
+    The resulting exception reaches Application Insights within a couple of minutes, the alert
+    rule files a Bug in Azure DevOps, and the agent opens a pull request with a fix.
+</p>
+
+@if (_scenarios is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="scenario-list">
+        @foreach (var s in _scenarios)
+        {
+            (int Status, string Body)? result = _results.TryGetValue(s.Id, out var r) ? r : null;
+            <div class="scenario">
+                <div class="scenario-body">
+                    <div class="scenario-title">@s.Title</div>
+                    <div class="scenario-desc">@s.Description</div>
+                    <code class="scenario-path">@s.Method @s.Path</code>
+                    @if (result is not null)
+                    {
+                        <div class="scenario-result @(result.Value.Status >= 500 ? "failed" : "ok")">
+                            <strong>HTTP @result.Value.Status</strong>
+                            <pre>@result.Value.Body</pre>
+                        </div>
+                    }
+                </div>
+                <button class="btn btn-outline-danger" disabled="@_busy.Contains(s.Id)" @onclick="() => Trigger(s)">
+                    @(_busy.Contains(s.Id) ? "Running…" : "Trigger")
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ChaosScenario>? _scenarios;
+    private readonly Dictionary<string, (int Status, string Body)> _results = new();
+    private readonly HashSet<string> _busy = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _scenarios = await Api.GetChaosScenariosAsync();
+    }
+
+    private async Task Trigger(ChaosScenario scenario)
+    {
+        _busy.Add(scenario.Id);
+        try
+        {
+            _results[scenario.Id] = await Api.CallAsync(scenario.Method, scenario.Path);
+        }
+        catch (Exception ex)
+        {
+            _results[scenario.Id] = (0, ex.Message);
+        }
+        finally
+        {
+            _busy.Remove(scenario.Id);
+        }
+    }
+}

@@ -1,0 +1,49 @@
+@inherits LayoutComponentBase
+@using Dashboard.Client.Services
+@using Dashboard.Shared
+@inject ApiClient Api
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 auth">
+            <LoginDisplay />
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+
+        <footer class="app-footer px-4">
+            @if (_version is not null)
+            {
+                <span>v@(_version.Version)</span>
+                <span class="sep">·</span>
+                <span title="commit">@_version.Commit</span>
+                <span class="sep">·</span>
+                <span>@_version.Environment</span>
+                <span class="sep">·</span>
+                <span>up since @_version.StartedAt.ToLocalTime().ToString("g")</span>
+            }
+        </footer>
+    </main>
+</div>
+
+@code {
+    private VersionInfo? _version;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _version = await Api.GetVersionAsync();
+        }
+        catch
+        {
+            // Footer is informational only.
+        }
+    }
+}

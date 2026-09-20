@@ -1,0 +1,15 @@
+<div class="stat-tile">
+    <div class="stat-label">@Label</div>
+    <div class="stat-value">@Value<span class="stat-unit">@Unit</span></div>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <div class="stat-hint">@Hint</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "–";
+    [Parameter] public string Unit { get; set; } = "";
+    [Parameter] public string? Hint { get; set; }
+}

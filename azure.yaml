@@ -1,0 +1,10 @@
+# Azure Developer CLI project. `azd provision` creates the infrastructure in infra/,
+# `azd deploy` pushes the server (which hosts the WASM client), `azd down` removes it all.
+name: self-healing-dashboard
+metadata:
+  template: self-healing-dashboard@0.1.0
+services:
+  web:
+    project: ./src/Dashboard.Server
+    language: dotnet
+    host: appservice

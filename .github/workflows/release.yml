@@ -1,0 +1,107 @@
+# Every push to main (i.e. every merged PR) becomes a release:
+#   1. compute the next SemVer from Conventional Commit messages and push tag vX.Y.Z
+#   2. publish a GitHub Release with generated notes (the deployment history)
+#   3. build with -p:Version=X.Y.Z and deploy to App Service via OIDC
+#   4. write a release annotation to Application Insights
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.new_version }}
+      tag: ${{ steps.tag.outputs.new_tag }}
+      changelog: ${{ steps.tag.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          release_branches: main
+          tag_prefix: v
+          initial_version: 0.1.0
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.new_tag }}
+          name: ${{ steps.tag.outputs.new_tag }}
+          generate_release_notes: true
+
+  deploy:
+    name: Build and deploy ${{ needs.version.outputs.tag }}
+    needs: version
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        run: >
+          dotnet publish src/Dashboard.Server/Dashboard.Server.csproj
+          -c Release -o publish
+          -p:Version=${{ needs.version.outputs.version }}
+          -p:SourceRevisionId=${{ github.sha }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME }}
+          package: publish
+
+      - name: Annotate release in Application Insights
+        continue-on-error: true
+        env:
+          APPINSIGHTS_RESOURCE_ID: ${{ vars.APPINSIGHTS_RESOURCE_ID }}
+        run: scripts/annotate-release.sh "${{ needs.version.outputs.tag }}" "${{ github.sha }}" "${{ github.actor }}"
+
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 20); do
+            body=$(curl -fsS "https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/version" || true)
+            echo "$body"
+            echo "$body" | grep -q '"version":"${{ needs.version.outputs.version }}"' && exit 0
+            sleep 15
+          done
+          echo "Deployed version did not become live in time" >&2
+          exit 1

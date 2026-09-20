@@ -1,0 +1,87 @@
+@page "/"
+@using Dashboard.Shared
+@using Dashboard.Client.Components
+@using Dashboard.Client.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject ApiClient Api
+@inject MetricsHubClient Hub
+@implements IDisposable
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="page-header">
+    <h1>Live metrics</h1>
+    <span class="badge-state @Hub.State.ToLowerInvariant()">@Hub.State</span>
+</div>
+
+<div class="stat-grid">
+    <StatTile Label="CPU" Value="@(Latest?.CpuPercent.ToString("F1") ?? "–")" Unit="%" />
+    <StatTile Label="Latency (5 min avg)" Value="@(_summary?.AvgLatencyMs.ToString("F0") ?? "–")" Unit="ms" />
+    <StatTile Label="P95 latency" Value="@(_summary?.P95LatencyMs.ToString("F0") ?? "–")" Unit="ms" />
+    <StatTile Label="Requests (5 min)" Value="@(_summary?.TotalRequests.ToString() ?? "–")" Hint="@(_summary is null ? null : $"{_summary.SampleCount} samples")" />
+</div>
+
+<div class="chart-grid">
+    <LineChart Title="CPU" Unit="%" Color="#2a78d6" Format="F1" Max="100"
+               Points="@Hub.Samples.Select(s => s.CpuPercent).ToList()"
+               Times="@Hub.Samples.Select(s => s.Timestamp).ToList()" />
+    <LineChart Title="Latency" Unit="ms" Color="#eb6834" Format="F0"
+               Points="@Hub.Samples.Select(s => s.LatencyMs).ToList()"
+               Times="@Hub.Samples.Select(s => s.Timestamp).ToList()" />
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger mt-3" role="alert">@_error</div>
+}
+
+@code {
+    private MetricsSummary? _summary;
+    private string? _error;
+    private PeriodicTimer? _timer;
+
+    private MetricSample? Latest => Hub.Samples.Count > 0 ? Hub.Samples[^1] : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Hub.Changed += OnHubChanged;
+        try
+        {
+            await Hub.StartAsync();
+            _summary = await Api.GetSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not connect: {ex.Message}";
+        }
+
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        _ = RefreshSummaryLoop();
+    }
+
+    private async Task RefreshSummaryLoop()
+    {
+        while (_timer is not null && await _timer.WaitForNextTickAsync())
+        {
+            try
+            {
+                _summary = await Api.GetSummaryAsync();
+                StateHasChanged();
+            }
+            catch
+            {
+                // Transient; the next tick retries.
+            }
+        }
+    }
+
+    private void OnHubChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Hub.Changed -= OnHubChanged;
+        _timer?.Dispose();
+        _timer = null;
+    }
+}

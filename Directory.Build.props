@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- Overridden by CI with -p:Version=X.Y.Z (tag-driven SemVer). -->
+    <Version>0.1.0</Version>
+    <Authors>Jeff Kershner</Authors>
+    <Product>Self-Healing Dashboard</Product>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <!-- Portable PDBs ship with the publish output so App Insights stack traces carry file:line. -->
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

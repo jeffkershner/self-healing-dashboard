@@ -1,0 +1,90 @@
+# Triggered when Azure DevOps reports a new Bug tagged "agent-fix" (via Logic App B → repository_dispatch),
+# or by hand with a work item id. Claude Code reads the bug, fixes the root cause, adds a regression
+# test, and opens a PR that references the work item with "AB#<id>".
+name: Agent fix
+
+on:
+  repository_dispatch:
+    types: [bug-created]
+  workflow_dispatch:
+    inputs:
+      work_item_id:
+        description: Azure DevOps work item id
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: agent-fix-${{ github.event.client_payload.workItemId || inputs.work_item_id }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  AZDO_ORG: ${{ vars.AZDO_ORG }}
+  AZDO_PROJECT: ${{ vars.AZDO_PROJECT }}
+  AZDO_PAT: ${{ secrets.AZDO_PAT }}
+  WORK_ITEM_ID: ${{ github.event.client_payload.workItemId || inputs.work_item_id }}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Fetch the work item
+        run: |
+          scripts/ado-get-workitem.sh "$WORK_ITEM_ID" > .github/agent/workitem.json
+          jq -r '.fields["System.Title"]' .github/agent/workitem.json
+          scripts/ado-update-workitem.sh "$WORK_ITEM_ID" \
+            --comment "Agent run started: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --state Active
+
+      - name: Warm the build cache
+        run: dotnet build Dashboard.slnx -c Release
+
+      - name: Configure git
+        run: |
+          git config user.name "claude-agent[bot]"
+          git config user.email "claude-agent@users.noreply.github.com"
+
+      - name: Load the agent prompt
+        id: prompt
+        run: |
+          {
+            echo 'text<<PROMPT_EOF'
+            cat .github/agent/fix-bug-prompt.md
+            echo
+            echo "Work item id: $WORK_ITEM_ID"
+            echo 'PROMPT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Claude Code fixes the bug
+        uses: anthropics/claude-code-action@v1
+        env:
+          # A PAT (not GITHUB_TOKEN) so the PR the agent opens still triggers the CI workflow.
+          GH_TOKEN: ${{ secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GH_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.text }}
+          claude_args: >-
+            --max-turns 80
+            --allowedTools "Bash(dotnet:*),Bash(git:*),Bash(gh:*),Bash(jq:*),Bash(cat:*),Bash(ls:*),Bash(scripts/*),Read,Edit,Write,Glob,Grep"
+
+      - name: Report failure to the work item
+        if: failure()
+        run: |
+          scripts/ado-update-workitem.sh "$WORK_ITEM_ID" \
+            --comment "Agent run failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. A human needs to look at this one." \
+            --state New

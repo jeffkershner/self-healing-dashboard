@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "githubRepo": { "type": "String" },
+    "githubToken": { "type": "SecureString" }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "eventType": { "type": "string" },
+            "resource": { "type": "object" }
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "If_bug_tagged_agent_fix": {
+      "type": "If",
+      "runAfter": {},
+      "expression": {
+        "and": [
+          { "equals": ["@toLower(coalesce(triggerBody()?['resource']?['fields']?['System.WorkItemType'], ''))", "bug"] },
+          { "contains": ["@toLower(coalesce(triggerBody()?['resource']?['fields']?['System.Tags'], ''))", "agent-fix"] }
+        ]
+      },
+      "actions": {
+        "Dispatch_agent_workflow": {
+          "type": "Http",
+          "runAfter": {},
+          "inputs": {
+            "method": "POST",
+            "uri": "https://api.github.com/repos/@{parameters('githubRepo')}/dispatches",
+            "headers": {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer @{parameters('githubToken')}",
+              "User-Agent": "self-healing-dashboard-logic-app",
+              "X-GitHub-Api-Version": "2022-11-28"
+            },
+            "body": {
+              "event_type": "bug-created",
+              "client_payload": {
+                "workItemId": "@{triggerBody()?['resource']?['id']}",
+                "title": "@{triggerBody()?['resource']?['fields']?['System.Title']}"
+              }
+            }
+          }
+        }
+      },
+      "else": { "actions": {} }
+    }
+  },
+  "outputs": {}
+}

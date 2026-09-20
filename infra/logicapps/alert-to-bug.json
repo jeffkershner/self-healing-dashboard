@@ -1,0 +1,114 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "workspaceId": { "type": "String" },
+    "appInsightsResourceId": { "type": "String" },
+    "azdoOrg": { "type": "String" },
+    "azdoProject": { "type": "String" },
+    "azdoPat": { "type": "SecureString" }
+  },
+  "triggers": {
+    "manual": {
+      "type": "Request",
+      "kind": "Http",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "schemaId": { "type": "string" },
+            "data": { "type": "object" }
+          }
+        }
+      }
+    }
+  },
+  "actions": {
+    "Query_recent_exceptions": {
+      "type": "Http",
+      "runAfter": {},
+      "inputs": {
+        "method": "POST",
+        "uri": "https://api.loganalytics.io/v1/workspaces/@{parameters('workspaceId')}/query",
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "timespan": "PT30M",
+          "query": "AppExceptions | where TimeGenerated > ago(15m) and ClientType != 'Browser' | summarize Count = sum(ItemCount), arg_max(TimeGenerated, ExceptionType, OuterMessage, Method, AppVersion, OperationName, OperationId, Details) by ProblemId | mv-apply Frame = Details[0].parsedStack on (order by tolong(Frame.level) asc | summarize Stack = strcat_array(make_list(strcat('   at ', tostring(Frame.method), iff(isnotempty(Frame.fileName), strcat(' in ', tostring(Frame.fileName), ':line ', tostring(Frame.line)), ''))), '\\n')) | project ProblemId, Count, LastSeen = TimeGenerated, ExceptionType, OuterMessage, Method, AppVersion, OperationName, OperationId, Stack"
+        },
+        "authentication": {
+          "type": "ManagedServiceIdentity",
+          "audience": "https://api.loganalytics.io"
+        }
+      }
+    },
+    "For_each_exception": {
+      "type": "Foreach",
+      "runAfter": { "Query_recent_exceptions": ["Succeeded"] },
+      "foreach": "@body('Query_recent_exceptions')?['tables']?[0]?['rows']",
+      "runtimeConfiguration": { "concurrency": { "repetitions": 1 } },
+      "actions": {
+        "Title": {
+          "type": "Compose",
+          "runAfter": {},
+          "inputs": "@{items('For_each_exception')[3]} in @{coalesce(items('For_each_exception')[5], items('For_each_exception')[7])}"
+        },
+        "Find_existing_bug": {
+          "type": "Http",
+          "runAfter": { "Title": ["Succeeded"] },
+          "inputs": {
+            "method": "POST",
+            "uri": "https://dev.azure.com/@{parameters('azdoOrg')}/@{parameters('azdoProject')}/_apis/wit/wiql?api-version=7.1",
+            "headers": { "Content-Type": "application/json" },
+            "body": {
+              "query": "SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] = 'Bug' AND [System.Title] = '@{replace(outputs('Title'), '''', '''''')}' AND [System.State] <> 'Closed' AND [System.State] <> 'Removed'"
+            },
+            "authentication": {
+              "type": "Basic",
+              "username": "pat",
+              "password": "@parameters('azdoPat')"
+            }
+          }
+        },
+        "If_new": {
+          "type": "If",
+          "runAfter": { "Find_existing_bug": ["Succeeded"] },
+          "expression": {
+            "and": [
+              { "equals": ["@length(coalesce(body('Find_existing_bug')?['workItems'], json('[]')))", 0] }
+            ]
+          },
+          "actions": {
+            "Create_bug": {
+              "type": "Http",
+              "runAfter": {},
+              "inputs": {
+                "method": "POST",
+                "uri": "https://dev.azure.com/@{parameters('azdoOrg')}/@{parameters('azdoProject')}/_apis/wit/workitems/$Bug?api-version=7.1",
+                "headers": { "Content-Type": "application/json-patch+json" },
+                "body": [
+                  { "op": "add", "path": "/fields/System.Title", "value": "@{outputs('Title')}" },
+                  { "op": "add", "path": "/fields/System.Tags", "value": "agent-fix; auto-detected; application-insights" },
+                  { "op": "add", "path": "/fields/Microsoft.VSTS.Common.Severity", "value": "2 - High" },
+                  { "op": "add", "path": "/fields/Microsoft.VSTS.Build.FoundIn", "value": "@{items('For_each_exception')[6]}" },
+                  {
+                    "op": "add",
+                    "path": "/fields/Microsoft.VSTS.TCM.ReproSteps",
+                    "value": "<p><strong>Detected automatically by Application Insights.</strong></p><p><strong>Exception:</strong> @{items('For_each_exception')[3]}<br/><strong>Message:</strong> @{items('For_each_exception')[4]}<br/><strong>Operation:</strong> @{items('For_each_exception')[7]}<br/><strong>Version:</strong> @{items('For_each_exception')[6]}<br/><strong>Occurrences (last 15 min):</strong> @{items('For_each_exception')[1]}<br/><strong>Last seen:</strong> @{items('For_each_exception')[2]}<br/><strong>Problem id:</strong> @{items('For_each_exception')[0]}<br/><strong>Operation id:</strong> @{items('For_each_exception')[8]}</p><p><strong>Stack trace:</strong></p><pre>@{items('For_each_exception')[9]}</pre><p><a href=\"https://portal.azure.com/#resource@{parameters('appInsightsResourceId')}/failures\">Open in Application Insights</a></p>"
+                  },
+                  { "op": "add", "path": "/fields/Microsoft.VSTS.TCM.SystemInfo", "value": "<p>App Service (Linux), Application Insights resource @{parameters('appInsightsResourceId')}</p>" }
+                ],
+                "authentication": {
+                  "type": "Basic",
+                  "username": "pat",
+                  "password": "@parameters('azdoPat')"
+                }
+              }
+            }
+          },
+          "else": { "actions": {} }
+        }
+      }
+    }
+  },
+  "outputs": {}
+}
