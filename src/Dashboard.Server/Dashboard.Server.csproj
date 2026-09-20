@@ -17,4 +17,10 @@
     <ProjectReference Include="..\Dashboard.Shared\Dashboard.Shared.csproj" />
   </ItemGroup>
 
+  <!-- The client's runtimeconfig is only needed by the WASM debug proxy at dev time. Left in the
+       publish output it makes App Service Linux see two entry points and serve its placeholder. -->
+  <Target Name="RemoveClientRuntimeConfigFromPublish" AfterTargets="Publish">
+    <Delete Files="$(PublishDir)Dashboard.Client.runtimeconfig.json" />
+  </Target>
+
 </Project>

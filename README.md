@@ -81,7 +81,7 @@ gh secret set GH_PR_TOKEN --body "<fine-grained PAT: contents + pull requests wr
 `GH_PR_TOKEN` matters: PRs opened with the built-in `GITHUB_TOKEN` do not trigger the CI workflow.
 
 ### 6. First release
-Push to `main` (or merge a PR). The **Release** workflow tags `v0.1.1`, creates a GitHub Release,
+Push to `main` (or merge a PR). The **Release** workflow tags the next version (patch bump by default), creates a GitHub Release,
 deploys, annotates App Insights, and smoke-tests `/api/version`.
 
 ## Demo script

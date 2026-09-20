@@ -65,6 +65,9 @@ resource web 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
+      // The publish output carries both the client and server runtimeconfig files, so the image
+      // cannot infer the entry point on its own.
+      appCommandLine: 'dotnet Dashboard.Server.dll'
       webSocketsEnabled: true
       alwaysOn: appServiceSku != 'F1'
       http20Enabled: true
