@@ -81,6 +81,9 @@ resource web 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'AzureAd__TenantId', value: entraTenantId }
         { name: 'AzureAd__ClientId', value: apiClientId }
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }
+        // Mount each deployment zip read-only and swap atomically; copying files over a running
+        // process throws InvalidProgramException during the switch, which would file bogus bugs.
+        { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' }
       ]
     }
   }

@@ -82,11 +82,14 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Package
+        run: cd publish && zip -qr ../app.zip .
+
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ vars.AZURE_WEBAPP_NAME }}
-          package: publish
+          package: app.zip
 
       - name: Annotate release in Application Insights
         continue-on-error: true

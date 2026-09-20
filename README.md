@@ -33,6 +33,12 @@ each calls a real endpoint with an input the current code does not handle, and s
 
 Nothing here is automated because each step needs your own sign-in. Roughly one hour.
 
+### 0. GitHub fine-grained PAT (used for the agent's PRs and for repository_dispatch)
+GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** →
+Generate new token. Repository access: *Only select repositories* → this repo. Repository
+permissions: **Contents: Read and write**, **Pull requests: Read and write**. Store it as the
+`GH_PR_TOKEN` secret and pass it as `GITHUB_DISPATCH_TOKEN` to the infrastructure.
+
 ### 1. Accounts and CLIs
 - [ ] `brew install azure-cli azd gh` (done on this Mac) and the .NET 10 SDK (`~/.dotnet`).
 - [ ] Azure account (free credit). `az login`, `azd auth login`.
@@ -53,8 +59,10 @@ Nothing here is automated because each step needs your own sign-in. Roughly one 
       `ApiScope` = `api://<api-client-id>/access_as_user`.
 
 ### 3. Azure DevOps
-- [ ] Organization + project using the **Agile** process (work item type "Bug").
-- [ ] PAT with **Work Items: Read & write** and **Service Connections/Hooks: Read & write** → `AZDO_PAT`.
+- [ ] Organization + project using the **Agile** process (work item type "Bug"). The default
+      "Basic" process has no Bug type; pick Agile under *Advanced* when creating the project, or
+      create one via REST with process template id `adcc42ab-9882-485e-a3ed-7678f01f66bc`.
+- [ ] PAT with **Work Items: Read & write** and **Service Hooks: Read & write** → `AZDO_PAT`.
 - [ ] Project settings → GitHub connections → connect the repo (enables `AB#123` linking and auto-resolve).
 
 ### 4. Provision Azure
