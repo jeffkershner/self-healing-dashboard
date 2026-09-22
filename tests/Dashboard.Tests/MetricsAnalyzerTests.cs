@@ -23,6 +23,19 @@ public class MetricsAnalyzerTests
     }
 
     [Fact]
+    public void Summarize_of_empty_samples_does_not_throw()
+    {
+        var summary = MetricsAnalyzer.Summarize([]);
+
+        Assert.Equal(0, summary.SampleCount);
+        Assert.Equal(0, summary.AvgCpuPercent);
+        Assert.Equal(0, summary.AvgLatencyMs);
+        Assert.Equal(0, summary.TotalRequests);
+        Assert.Equal(0, summary.AvgRequestsPerSample);
+        Assert.Equal(0, summary.P95LatencyMs);
+    }
+
+    [Fact]
     public void Percentile_returns_median_for_p50()
     {
         var values = new double[] { 5, 1, 4, 2, 3 };
