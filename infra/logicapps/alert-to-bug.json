@@ -33,7 +33,7 @@
         "headers": { "Content-Type": "application/json" },
         "body": {
           "timespan": "PT30M",
-          "query": "AppExceptions | where TimeGenerated > ago(15m) and ClientType != 'Browser' | summarize Count = sum(ItemCount), arg_max(TimeGenerated, ExceptionType, OuterMessage, Method, AppVersion, OperationName, OperationId, Details) by ProblemId | mv-apply Frame = Details[0].parsedStack on (order by tolong(Frame.level) asc | summarize Stack = strcat_array(make_list(strcat('   at ', tostring(Frame.method), iff(isnotempty(Frame.fileName), strcat(' in ', tostring(Frame.fileName), ':line ', tostring(Frame.line)), ''))), '\\n')) | project ProblemId, Count, LastSeen = TimeGenerated, ExceptionType, OuterMessage, Method, AppVersion, OperationName, OperationId, Stack"
+          "query": "AppExceptions | where TimeGenerated > ago(15m) and ClientType != 'Browser' | summarize Count = sum(ItemCount), arg_max(TimeGenerated, ExceptionType, OuterMessage, Method, AppVersion, OperationName, OperationId, Details) by ProblemId | mv-apply Frame = Details[0].parsedStack on (order by tolong(Frame.level) asc | summarize Stack = strcat_array(make_list(strcat('   at ', tostring(Frame.method), iff(isnotempty(Frame.fileName), strcat(' in ', tostring(Frame.fileName), ':line ', tostring(Frame.line)), ''))), '\\n'), AppFrames = make_list_if(tostring(Frame.method), tostring(Frame.method) startswith 'Dashboard.')) | project ProblemId, Count, LastSeen = TimeGenerated, ExceptionType, OuterMessage, Method = coalesce(tostring(AppFrames[0]), Method), AppVersion, OperationName, OperationId, Stack"
         },
         "authentication": {
           "type": "ManagedServiceIdentity",
