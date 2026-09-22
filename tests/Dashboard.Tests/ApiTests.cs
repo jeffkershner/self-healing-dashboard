@@ -35,6 +35,22 @@ public class ApiTests : IClassFixture<WebApplicationFactory<Program>>
     }
 
     [Fact]
+    public async Task Unknown_widget_id_returns_not_found()
+    {
+        var response = await _client.GetAsync("/api/widgets/disk");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Unknown_widget_value_returns_not_found()
+    {
+        var response = await _client.GetAsync("/api/widgets/disk/value");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Chaos_scenarios_are_listed()
     {
         var response = await _client.GetAsync("/api/chaos/scenarios");

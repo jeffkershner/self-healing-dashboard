@@ -29,11 +29,15 @@ public sealed class WidgetCatalog
 
     public IReadOnlyCollection<WidgetDefinition> All => _widgets.Values.Select(ToDefinition).ToList();
 
-    public WidgetDefinition Get(string id) => ToDefinition(_widgets[id]);
+    public WidgetDefinition? Get(string id) => _widgets.TryGetValue(id, out var widget) ? ToDefinition(widget) : null;
 
-    public WidgetValue Render(string id, MetricSample? latest, DateTimeOffset startedAt, DateTimeOffset now)
+    public WidgetValue? Render(string id, MetricSample? latest, DateTimeOffset startedAt, DateTimeOffset now)
     {
-        var widget = _widgets[id];
+        if (!_widgets.TryGetValue(id, out var widget))
+        {
+            return null;
+        }
+
         var raw = widget.Id.ToLowerInvariant() switch
         {
             "cpu" => latest?.CpuPercent ?? 0,
