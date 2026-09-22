@@ -8,7 +8,7 @@ public static class MetricsAnalyzer
     public static MetricsSummary Summarize(IReadOnlyList<MetricSample> samples)
     {
         var totalRequests = samples.Sum(s => s.Requests);
-        var avgRequestsPerSample = totalRequests / samples.Count;
+        var avgRequestsPerSample = samples.Count == 0 ? 0 : totalRequests / samples.Count;
 
         return new MetricsSummary(
             SampleCount: samples.Count,
