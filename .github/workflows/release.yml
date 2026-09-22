@@ -99,6 +99,15 @@ jobs:
           APPINSIGHTS_RESOURCE_ID: ${{ vars.APPINSIGHTS_RESOURCE_ID }}
         run: scripts/annotate-release.sh "${{ needs.version.outputs.tag }}" "${{ github.sha }}" "${{ github.actor }}"
 
+      - name: Resolve linked Azure DevOps bugs
+        if: vars.AZDO_ORG != ''
+        continue-on-error: true
+        env:
+          AZDO_ORG: ${{ vars.AZDO_ORG }}
+          AZDO_PROJECT: ${{ vars.AZDO_PROJECT }}
+          AZDO_PAT: ${{ secrets.AZDO_PAT }}
+        run: scripts/ado-resolve-from-commit.sh "${{ github.sha }}" "${{ needs.version.outputs.tag }}" "${{ github.server_url }}/${{ github.repository }}"
+
       - name: Smoke test
         run: |
           for i in $(seq 1 20); do

@@ -63,7 +63,9 @@ permissions: **Contents: Read and write**, **Pull requests: Read and write**. St
       "Basic" process has no Bug type; pick Agile under *Advanced* when creating the project, or
       create one via REST with process template id `adcc42ab-9882-485e-a3ed-7678f01f66bc`.
 - [ ] PAT with **Work Items: Read & write** and **Service Hooks: Read & write** → `AZDO_PAT`.
-- [ ] Project settings → GitHub connections → connect the repo (enables `AB#123` linking and auto-resolve).
+- [ ] Optional: Project settings → GitHub connections → connect the repo so `AB#123` in PRs becomes a link.
+      Resolution on deploy does not depend on it: the release workflow resolves any `AB#` bug named in
+      the merged commit through the API.
 
 ### 4. Provision Azure
 ```bash
