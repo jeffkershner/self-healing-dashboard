@@ -37,14 +37,11 @@ public static class ApiEndpoints
         widgets.MapGet("/", (WidgetCatalog catalog) => catalog.All)
             .WithName("ListWidgets");
 
-        widgets.MapGet("/{id}", (string id, WidgetCatalog catalog) =>
-                catalog.Get(id) is { } widget ? Results.Ok(widget) : Results.NotFound())
+        widgets.MapGet("/{id}", (string id, WidgetCatalog catalog) => catalog.Get(id))
             .WithName("GetWidget");
 
         widgets.MapGet("/{id}/value", (string id, WidgetCatalog catalog, MetricsStore store, TimeProvider time) =>
-                catalog.Render(id, store.Latest(), AppVersion.Describe("n/a").StartedAt, time.GetUtcNow()) is { } value
-                    ? Results.Ok(value)
-                    : Results.NotFound())
+                catalog.Render(id, store.Latest(), AppVersion.Describe("n/a").StartedAt, time.GetUtcNow()))
             .WithName("GetWidgetValue");
 
         api.MapGet("/chaos/scenarios", () => ChaosCatalog.Scenarios)
