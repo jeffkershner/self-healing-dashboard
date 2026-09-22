@@ -19,6 +19,7 @@ public class WidgetCatalogTests
 
         var value = catalog.Render("cpu", latest, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
+        Assert.NotNull(value);
         Assert.Equal("42.3", value.Display);
         Assert.Equal("%", value.Unit);
     }
@@ -30,5 +31,24 @@ public class WidgetCatalogTests
 
         Assert.Contains(catalog.All, w => w.Id == "cpu");
         Assert.Contains(catalog.All, w => w.Id == "uptime");
+    }
+
+    [Fact]
+    public void Unknown_widget_id_returns_null_definition()
+    {
+        var catalog = Catalog();
+
+        Assert.Null(catalog.Get("disk"));
+    }
+
+    [Fact]
+    public void Unknown_widget_id_renders_to_null_instead_of_throwing()
+    {
+        var catalog = Catalog();
+        var latest = new MetricSample(DateTimeOffset.UtcNow, 42.345, 512, 7, 99.9);
+
+        var value = catalog.Render("disk", latest, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        Assert.Null(value);
     }
 }
