@@ -60,7 +60,7 @@
             "uri": "https://dev.azure.com/@{parameters('azdoOrg')}/@{parameters('azdoProject')}/_apis/wit/wiql?api-version=7.1",
             "headers": { "Content-Type": "application/json" },
             "body": {
-              "query": "SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] = 'Bug' AND [System.Title] = '@{replace(outputs('Title'), '''', '''''')}' AND [System.State] <> 'Closed' AND [System.State] <> 'Removed'"
+              "query": "SELECT [System.Id] FROM WorkItems WHERE [System.WorkItemType] = 'Bug' AND [System.Title] = '@{replace(outputs('Title'), '''', '''''')}' AND [System.State] IN ('New', 'Active')"
             },
             "authentication": {
               "type": "Basic",

@@ -11,6 +11,8 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'infra/**'
+      - 'scripts/**'
   workflow_dispatch:
 
 permissions:
